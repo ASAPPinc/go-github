@@ -488,6 +488,8 @@ type UnauthenticatedRateLimitedTransport struct {
 	// application.
 	ClientSecret string
 
+	AccessToken string
+
 	// Transport is the underlying HTTP transport to use when making requests.
 	// It will default to http.DefaultTransport if nil.
 	Transport http.RoundTripper
@@ -495,20 +497,20 @@ type UnauthenticatedRateLimitedTransport struct {
 
 // RoundTrip implements the RoundTripper interface.
 func (t *UnauthenticatedRateLimitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.ClientID == "" {
-		return nil, errors.New("t.ClientID is empty")
-	}
-	if t.ClientSecret == "" {
-		return nil, errors.New("t.ClientSecret is empty")
-	}
-
 	// To set extra querystring params, we must make a copy of the Request so
 	// that we don't modify the Request we were given. This is required by the
 	// specification of http.RoundTripper.
 	req = cloneRequest(req)
 	q := req.URL.Query()
-	q.Set("client_id", t.ClientID)
-	q.Set("client_secret", t.ClientSecret)
+
+	if t.AccessToken != "" {
+		req.Header.Add("Authorization", "token "+t.AccessToken)
+	} else if t.ClientID != "" && t.ClientSecret != "" {
+		q.Set("client_id", t.ClientID)
+		q.Set("client_secret", t.ClientSecret)
+	} else {
+		return nil, errors.New("Missing AccessToken or ClientID/ClientSecret")
+	}
 	req.URL.RawQuery = q.Encode()
 
 	// Make the HTTP request.
